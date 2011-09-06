@@ -67,37 +67,11 @@ def street2coordinates(addresses)
       printf(STDERR, $!.inspect + $@.inspect + "\n")
       info = nil
     end
-    #output[address] = info
-    output = transform(info)
+    output = info
   end
 
   return output
 
-end
-
-
-def transform(response)
-  address = Hash.new
-  _meta = Hash.new
-  full_address = response["address"]
-  coords = Array.new(response["longitude"], response["latitude"])
-
-  address["geo_geometry_type" => "Point",
-    "type" => "",
-    "country_id" => response["country_code"],
-    "coordinates" => coords,
-    "name" => response["address"],
-    _meta => {"confidence" => address["confidence"],
-      "street_number" => address["street_number"],
-      "street_name" => address["street_name"],
-      "fips_county" => address["fips_county"],
-      "country_code3" => address["country_code3"],
-      "country_name" => address["country_name"],
-      "region" => address["region"],
-      "locality" => address["locality"]
-    }
-  ]
-  retuen address
 end
 
 # Looks through the list of addresses, tries to guess which country each one belongs to
