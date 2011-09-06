@@ -1,7 +1,7 @@
 # Street2Coordinates
 #
 # This module takes a series of postal addresses and tries to resolve them into
-# latitude/longitude coordinates. 
+# latitude/longitude coordinates.
 #
 # Copyright (C) 2010 Pete Warden <pete@petewarden.com>
 #
@@ -67,21 +67,47 @@ def street2coordinates(addresses)
       printf(STDERR, $!.inspect + $@.inspect + "\n")
       info = nil
     end
-    output[address] = info
+    #output[address] = info
+    output = transform(info)
   end
-    
+
   return output
 
 end
 
+
+def transform(response)
+  address = Hash.new
+  _meta = Hash.new
+  full_address = response["address"]
+  coords = Array.new(response["longitude"], response["latitude"])
+
+  address["geo_geometry_type" => "Point",
+    "type" => "",
+    "country_id" => response["country_code"],
+    "coordinates" => coords,
+    "name" => response["address"],
+    _meta => {"confidence" => address["confidence"],
+      "street_number" => address["street_number"],
+      "street_name" => address["street_name"],
+      "fips_county" => address["fips_county"],
+      "country_code3" => address["country_code3"],
+      "country_name" => address["country_name"],
+      "region" => address["region"],
+      "locality" => address["locality"]
+    }
+  ]
+  retuen address
+end
+
 # Looks through the list of addresses, tries to guess which country each one belongs to
-# by looking for evidence like explicit country names, distinctive postal codes or 
-# known region or city names, and returns the most frequent for use as a default. 
+# by looking for evidence like explicit country names, distinctive postal codes or
+# known region or city names, and returns the most frequent for use as a default.
 def guess_top_country_for_list(addresses)
 
   country_votes = {}
   addresses.each do |address|
-  
+
     country = guess_country_for_address(address)
 
     if country
@@ -90,18 +116,18 @@ def guess_top_country_for_list(addresses)
       end
       country_votes[country] += 1
     end
-  
+
   end
-  
+
   if country_votes.length == 0
     return nil
   end
-  
+
   top_countries = country_votes.sort do |a,b| b[1]<=>a[1] end
   top_country = top_countries[0][0]
 
   top_country
-  
+
 end
 
 # Looks for clues in the address that indicate which country it's in
@@ -232,13 +258,13 @@ def looks_like_us_address(address)
     'WY',
     'Wyoming',
   ]
-  
+
   state_names = '('+state_names_list.join('|')+')'
-  
+
   zip_code = '\d\d\d\d\d(-\d\d\d\d)?'
-  
+
   state_zip_suffix_re = Regexp.new(S2C_WHITESPACE+state_names+'('+S2C_WHITESPACE+zip_code+')?'+S2C_WHITESPACE+'?$', Regexp::IGNORECASE)
-  
+
   if state_zip_suffix_re.match(address)
     return true
   end
@@ -439,16 +465,16 @@ def looks_like_uk_address(address)
     'york',
     'york(shire)?',
   ]
-  
-  county_names = '('+county_names_list.join('|')+')'  
-  county_suffix_re = Regexp.new(S2C_WHITESPACE+county_names+S2C_WHITESPACE+'?$', Regexp::IGNORECASE)  
+
+  county_names = '('+county_names_list.join('|')+')'
+  county_suffix_re = Regexp.new(S2C_WHITESPACE+county_names+S2C_WHITESPACE+'?$', Regexp::IGNORECASE)
   if county_suffix_re.match(address)
     return true
   end
 
   post_code = '[A-Z][A-Z]?[0-9R][0-9A-Z]? ?[0-9][A-Z]{2}'
-  
-  post_code_suffix_re = Regexp.new(S2C_WHITESPACE+post_code+S2C_WHITESPACE+'?$', Regexp::IGNORECASE)  
+
+  post_code_suffix_re = Regexp.new(S2C_WHITESPACE+post_code+S2C_WHITESPACE+'?$', Regexp::IGNORECASE)
   if post_code_suffix_re.match(address)
     return true
   end
@@ -483,7 +509,7 @@ def geocode_us_address(address)
   else
     info = nil
   end
-  
+
   info
 end
 
@@ -500,15 +526,15 @@ def geocode_uk_address(address, conn)
   post_code_match = post_code_re.match(clean_address)
   s2c_debug_log("post_code_match='%s'" % post_code_match.inspect)
   if post_code_match
-  
+
     clean_address = clean_address[0..post_code_match.begin(0)]
-  
+
     # Right-pad it with spaces to match the database format
     first_part = post_code_match[2].to_s.ljust(4, ' ')
     second_part = post_code_match[3].to_s
-    
+
     full_post_code = first_part+second_part
-  
+
     post_code_select = 'SELECT postcode,country_code,county_code,district_code,ward_code'+
       ',ST_Y(location::geometry) as latitude, ST_X(location::geometry) AS longitude'+
       ' FROM "uk_postcodes" WHERE postcode=\''+full_post_code+'\' LIMIT 1;'
@@ -518,9 +544,9 @@ def geocode_uk_address(address, conn)
     post_code_hashes = select_as_hashes(conn, post_code_select)
 
     s2c_debug_log("post_code_hashes='%s'" % post_code_hashes.inspect)
-  
+
     if post_code_hashes and post_code_hashes.length>0
-    
+
       post_code_info = post_code_hashes[0]
 
       district_code = post_code_info['county_code']+post_code_info['district_code']
@@ -530,7 +556,7 @@ def geocode_uk_address(address, conn)
       s2c_debug_log("district_hashes='%s'" % district_hashes.inspect)
       district_info = district_hashes[0]
       district_name = district_info['name']
-      
+
       ward_code = district_code+post_code_info['ward_code']
       ward_select = 'SELECT * FROM uk_ward_names WHERE ward_code=\''+ward_code+'\';'
       s2c_debug_log("ward_select='%s'" % ward_select.inspect)
@@ -538,7 +564,7 @@ def geocode_uk_address(address, conn)
       s2c_debug_log("ward_hashes='%s'" % ward_hashes.inspect)
       ward_info = ward_hashes[0]
       ward_name = ward_info['name']
-      
+
       info = {
         :latitude => post_code_info['latitude'],
         :longitude => post_code_info['longitude'],
@@ -555,15 +581,15 @@ def geocode_uk_address(address, conn)
       }
 
       s2c_debug_log("Updating info to '%s' for '%s'" % [info.inspect, full_post_code])
-            
+
     end
-    
+
   end
 
   clean_address.gsub!(/ (U\.?K\.?|United Kingdom|Great Britain|England|Scotland|Wales) *$/i, '')
 
   s2c_debug_log("clean_address='%s'" % clean_address.inspect)
-  
+
   # See if we can break up the address into obvious street and other sections
   street_markers_list = [
     'Way',
@@ -592,7 +618,7 @@ def geocode_uk_address(address, conn)
     'Rw',
     'Mews',
   ]
-  
+
   street_marker = '('+street_markers_list.join('|')+')'
 
   street_parts_re = Regexp.new('^(.*[a-z]+.*'+street_marker+')(.*)', Regexp::IGNORECASE)
@@ -605,7 +631,7 @@ def geocode_uk_address(address, conn)
     street_string = nil
     place_string = clean_address
   end
-  
+
   # Now try to extract the village/town/county parts
   # See http://wiki.openstreetmap.org/wiki/Key:place
   place_ranking = {
@@ -621,23 +647,23 @@ def geocode_uk_address(address, conn)
     'islet' => 6,
     'farm' => 6,
   }
-  
+
   place_parts = place_string.strip.split(' ').reverse
   unrecognized_parts = []
 
   s2c_debug_log("place_parts='%s'" % place_parts.inspect)
 
   parts_count = [place_parts.length, 4].min
-  
+
   while place_parts.length > 0 do
-  
+
     if parts_count < 1
       unrecognized_token = place_parts.shift(1)
       s2c_debug_log("unrecognized_token '%s'" % unrecognized_token)
       unrecognized_parts.push(unrecognized_token)
       parts_count = [place_parts.length, 4].min
     end
-  
+
     candidate_name = place_parts[0..(parts_count-1)].reverse.join(' ')
     parts_count -= 1
 
@@ -651,29 +677,29 @@ def geocode_uk_address(address, conn)
     s2c_debug_log("location_select='%s'" % location_select.inspect)
 
     location_hashes = select_as_hashes(conn, location_select)
-  
+
     if !location_hashes or location_hashes.length == 0
       s2c_debug_log("No matches found for '%s'" % candidate_name)
       next
     end
-  
+
     # Rank the results either by the size of the area they represent, or their distance
     # from other identified parts of the address if any have been found
     candidate_hashes = []
     location_hashes.each do |location_hash|
-    
+
       place = location_hash['place']
-      
+
       # If we don't recognize this place type, skip it
       if !place_ranking.has_key?(place)
         s2c_debug_log("Unknown place '%s' found for '%s'" % [place, candidate_name])
         next
       end
-      
+
       candidate_confidence = place_ranking[place]
-    
+
       # We've already found a place, so use that as a reference
-      if info      
+      if info
         # Get an approximate distance measure. This is pretty distorted, but workable
         # as a scoring mechanism
         delta_lat = info[:latitude].to_f-location_hash['latitude'].to_f
@@ -682,7 +708,7 @@ def geocode_uk_address(address, conn)
       else
         score = place_ranking[place]
       end
-      
+
       candidate_hashes.push({
         :name => location_hash['name'],
         :latitude => location_hash['latitude'],
@@ -691,19 +717,19 @@ def geocode_uk_address(address, conn)
         :score => score,
         :confidence => candidate_confidence,
       })
-      
+
     end
-  
+
     # No valid locations with valid place types were found, so move along
     if candidate_hashes.length == 0
       s2c_debug_log("No valid matches found for '%s'" % candidate_name)
       next
     end
-    
+
     sorted_candidates = candidate_hashes.sort do |a,b| a[:score]<=>b[:score] end
 
     top_candidate = sorted_candidates[0]
-    
+
     # Now try to update what we know with the new information
     if !info
       info = {
@@ -721,11 +747,11 @@ def geocode_uk_address(address, conn)
         :fips_county => nil
       }
     end
-    
+
     old_confidence = info[:confidence]
     candidate_confidence = top_candidate[:confidence]
     if candidate_confidence > old_confidence
-      
+
       info[:latitude] = top_candidate[:latitude]
       info[:longitude] = top_candidate[:longitude]
       info[:confidence] = candidate_confidence
@@ -739,42 +765,42 @@ def geocode_uk_address(address, conn)
       end
 
       s2c_debug_log("Updating info to '%s' for '%s'" % [info.inspect, candidate_name])
-  
+
     end
-    
+
     # Remove the matched parts, and start matching anew on the remainder
     place_parts.shift(parts_count+1)
     parts_count = [place_parts.length, 4].min
-    unrecognized_parts = []  
+    unrecognized_parts = []
 
   end
 
   unrecognized_prefix = unrecognized_parts.reverse.join(' ')
-  
+
   s2c_debug_log("unrecognized_prefix='%s'" % unrecognized_prefix)
-  
+
   if !street_string
     street_string = unrecognized_prefix.strip
   end
-  
+
   # If we found a general location, see if we can narrow it down using the street
   if info and street_string and street_string.length > 0
-  
+
     street_string = canonicalize_street_string(street_string)
     street_parts = street_string.strip.split(' ').reverse
 
     s2c_debug_log("street_parts='%s'" % street_parts.inspect)
 
     parts_count = [street_parts.length, 4].min
-    
+
     while street_parts.length > 0 do
-    
+
       if parts_count < 1
         unrecognized_token = street_parts.shift(1)
         s2c_debug_log("unrecognized_token '%s'" % unrecognized_token)
         parts_count = [street_parts.length, 4].min
       end
-    
+
       candidate_name = street_parts[0..(parts_count-1)].reverse.join(' ')
       parts_count -= 1
 
@@ -799,14 +825,14 @@ def geocode_uk_address(address, conn)
       s2c_debug_log("road_select='%s'" % road_select.inspect)
 
       road_hashes = select_as_hashes(conn, road_select)
-    
+
       if !road_hashes or road_hashes.length == 0
         s2c_debug_log("No matches found for '%s'" % candidate_name)
         next
       end
-    
+
       top_candidate = road_hashes[0]
-        
+
       info[:latitude] = top_candidate['latitude']
       info[:longitude] = top_candidate['longitude']
       info[:confidence] = [info[:confidence], 8].max
@@ -815,7 +841,7 @@ def geocode_uk_address(address, conn)
       # Remove the matched parts
       street_parts.shift(parts_count+1)
       unrecognized_street = street_parts.reverse.join(' ')
-      
+
       street_number = /\d+[a-z]?/i.match(unrecognized_street)
       if street_number
         info[:street_number] = street_number.to_s
@@ -823,13 +849,13 @@ def geocode_uk_address(address, conn)
       end
 
       s2c_debug_log("Updating info to '%s' for '%s'" % [info.inspect, candidate_name])
-    
+
       # We've found a street, so stop looking
       break
     end
 
-    s2c_debug_log("unrecognized_street='%s'" % unrecognized_street)    
-  
+    s2c_debug_log("unrecognized_street='%s'" % unrecognized_street)
+
   end
 
   info
@@ -851,12 +877,12 @@ def canonicalize_street_string(street_string)
     'Highway' => ['Hwy'],
     'Row' => ['Rw'],
   }
-  
+
   abbreviation_mappings.each do |canonical, abbreviations|
-  
+
     abbreviations_re = Regexp.new('^(.*[a-z]+.*)('+abbreviations.join('|')+')([^a-z]*)$', Regexp::IGNORECASE)
     output.gsub!(abbreviations_re, '\1'+canonical+'\3')
-  
+
   end
 
   output
